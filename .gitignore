@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.verify/
+.vercel/
+# Development render rounds: 428 MB of PNGs. A curated handful lives in docs/frames/.
+shots/
+compare/
