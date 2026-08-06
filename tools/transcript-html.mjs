@@ -263,15 +263,17 @@ for (let n = 0; n < blocks.length; n++) {
     toolCalls++;
     // Pair the call with the result that follows it, the way the terminal renders them.
     const res = blocks.slice(n + 1, n + 4).find((x) => x.kind === 'result' && x.id === b.id);
+    const empty = res && !String(res.text).replace(/⋯ \[[^\]]*\]/g, '').trim();
     let resHtml = '';
-    if (res) {
+    if (res && !empty) {
       const all = String(res.text).split('\n');
       const shown = all.slice(0, MAX_RESULT_LINES).join('\n');
       const rest = all.length - MAX_RESULT_LINES;
       resHtml =
-        `<div class="res${res.error ? ' err' : ''}"><span class="gut">⎿</span><pre>${esc(shown)}</pre>` +
+        `<div class="res${res.error ? ' err' : ''}"><span class="gut">⎿</span><div class="rbody">` +
+        `<pre>${esc(shown)}</pre>` +
         (rest > 0 ? `<div class="more">… +${rest} líneas</div>` : '') +
-        `</div>`;
+        `</div></div>`;
     }
     parts.push(
       `<div class="tool"><div class="call"><span class="dot">⏺</span><span class="tname">${esc(b.name)}</span>` +
@@ -281,81 +283,135 @@ for (let n = 0; n < blocks.length; n++) {
 }
 
 const html = `<!doctype html>
-<html lang="es"><head><meta charset="utf-8">
+<html lang="es" data-skin="app"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OPERACIÓN SIESTA — la sesión completa</title>
 <style>
+/* Two skins on one document. "app" is the default and mirrors the Claude desktop app: warm
+   paper, a reading typeface, rounded cards, coral only where it means something. "term" is the
+   same content dressed as the terminal. The toggle writes data-skin on <html>. */
 :root{
-  --bg:#161513; --panel:#1c1b19; --line:#2b2926;
+  --coral:#d97757; --radius:12px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-skin=app]{
+  --bg:#faf9f7; --panel:#f0eee9; --card:#fff; --line:#e5e1da; --soft:#efece6;
+  --fg:#1f1e1d; --dim:#6b6862; --faint:#8f8b83;
+  --font:var(--sans); --size:16px; --lh:1.7; --width:46rem;
+}
+@media (prefers-color-scheme:dark){[data-skin=app]{
+  --bg:#1f1e1d; --panel:#262523; --card:#242322; --line:#37352f; --soft:#2b2a27;
+  --fg:#eeece7; --dim:#a8a29a; --faint:#7d786f;
+}}
+[data-skin=term]{
+  --bg:#161513; --panel:#1c1b19; --card:#1c1b19; --line:#2b2926; --soft:#201f1c;
   --fg:#e6e2dc; --dim:#8e877d; --faint:#6a645c;
-  --coral:#d97757; --green:#7fa87f; --blue:#7f9ec4; --red:#c96a5a;
-  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --font:var(--mono); --size:13.5px; --lh:1.65; --width:62rem;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13.5px/1.65 var(--mono);
-  -webkit-font-smoothing:antialiased;padding:0 0 8rem}
-.wrap{max-width:1020px;margin:0 auto;padding:0 20px}
-header{border-bottom:1px solid var(--line);padding:26px 0 18px;margin-bottom:26px}
-h1.top{font-size:15px;font-weight:700;margin:0 0 6px;letter-spacing:.02em}
+body{background:var(--bg);color:var(--fg);font:var(--size)/var(--lh) var(--font);
+  -webkit-font-smoothing:antialiased;padding:0 0 7rem}
+.wrap{max-width:var(--width);margin:0 auto;padding:0 22px}
+
+header{padding:30px 0 20px;margin-bottom:8px;border-bottom:1px solid var(--line)}
+h1.top{font-size:1.15em;font-weight:650;margin:0 0 6px;letter-spacing:-.01em}
+[data-skin=term] h1.top{font-weight:700;letter-spacing:.02em}
 h1.top .accent{color:var(--coral)}
-.sub{color:var(--dim);font-size:12px;margin:0}
-.stats{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;color:var(--faint);font-size:11.5px}
-.stats b{color:var(--fg);font-weight:600}
+.sub{color:var(--dim);font-size:.85em;margin:0;max-width:40rem}
+.bar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:14px;
+  color:var(--faint);font-size:.76em}
+.bar b{color:var(--fg);font-weight:600}
+.skin{margin-left:auto;display:flex;gap:0;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.skin button{font:inherit;font-size:.95em;color:var(--dim);background:none;border:0;
+  padding:5px 13px;cursor:pointer}
+.skin button[aria-pressed=true]{background:var(--coral);color:#fff}
 
-.turn.user{display:flex;gap:10px;margin:30px 0 22px;padding:12px 14px;
-  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--coral);border-radius:4px}
-.caret{color:var(--coral);font-weight:700;flex:none}
-.utext{white-space:normal;color:#f0ece6}
-.attach{margin-top:8px;color:var(--faint);font-size:11.5px}
+.turn.user{margin:34px 0 20px;padding:14px 18px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius)}
+[data-skin=term] .turn.user{border-radius:4px;border-left:2px solid var(--coral);
+  display:flex;gap:10px;padding:12px 14px}
+.caret{color:var(--coral);font-weight:700;flex:none;display:none}
+[data-skin=term] .caret{display:block}
+.utext{color:var(--fg)}
+[data-skin=app] .utext{font-size:1.02em}
+.attach{margin-top:9px;color:var(--faint);font-size:.8em}
 
-.turn.assistant{margin:18px 0 22px}
-.turn.assistant p{margin:0 0 12px;white-space:pre-wrap}
-.turn.assistant h2{font-size:14.5px;margin:22px 0 10px;color:#fff}
-.turn.assistant h3,.turn.assistant h4,.turn.assistant h5{font-size:13.5px;margin:18px 0 8px;color:#fff}
-.turn.assistant ul,.turn.assistant ol{margin:0 0 12px;padding-left:20px}
-.turn.assistant li{margin:3px 0}
-strong{color:#fff;font-weight:700}
+.turn.assistant{margin:16px 0 26px}
+.turn.assistant p{margin:0 0 14px;white-space:pre-wrap}
+.turn.assistant h2{font-size:1.16em;margin:26px 0 10px;font-weight:650;letter-spacing:-.01em}
+.turn.assistant h3,.turn.assistant h4,.turn.assistant h5{font-size:1.02em;margin:20px 0 8px;font-weight:650}
+.turn.assistant ul,.turn.assistant ol{margin:0 0 14px;padding-left:22px}
+.turn.assistant li{margin:5px 0}
+strong{font-weight:650;color:var(--fg)}
+[data-skin=term] strong{color:#fff;font-weight:700}
 em{color:var(--dim);font-style:italic}
-a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(127,158,196,.35)}
-a:hover{border-bottom-color:var(--blue)}
-code{background:#252320;border:1px solid var(--line);border-radius:3px;padding:.5px 4px;color:#e9c9a8;font-size:12.5px}
-pre.code{background:#121110;border:1px solid var(--line);border-radius:4px;
-  padding:12px 14px;overflow-x:auto;margin:0 0 14px}
-pre.code code{background:none;border:0;padding:0;color:#cfd4c9;font-size:12.5px}
-hr{border:0;border-top:1px solid var(--line);margin:22px 0}
-table{border-collapse:collapse;margin:0 0 14px;font-size:12.5px;width:100%;display:block;overflow-x:auto}
-th,td{border:1px solid var(--line);padding:5px 10px;text-align:left;vertical-align:top}
-th{background:#201f1c;color:#fff;font-weight:600}
+a{color:var(--coral);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--coral) 35%,transparent)}
+a:hover{border-bottom-color:var(--coral)}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);
+  border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+pre.code{font-family:var(--mono);background:var(--soft);border:1px solid var(--line);
+  border-radius:var(--radius);padding:13px 15px;overflow-x:auto;margin:0 0 16px;font-size:.85em;line-height:1.55}
+[data-skin=term] pre.code{border-radius:4px}
+pre.code code{background:none;border:0;padding:0;font-size:1em}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+table{border-collapse:collapse;margin:0 0 16px;font-size:.88em;width:100%;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 11px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600}
 
-.tool{margin:0 0 10px}
+.tool{margin:0 0 8px;font-family:var(--mono);font-size:.83em}
+[data-skin=app] .tool{background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:9px 13px}
 .call{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
-.dot{color:var(--green);flex:none}
-.tname{color:#fff;font-weight:600}
+.dot{color:var(--coral);flex:none;font-size:.85em}
+[data-skin=term] .dot{color:#7fa87f}
+.tname{font-weight:650}
 .targ{color:var(--dim);word-break:break-word}
-.res{display:flex;gap:8px;margin:2px 0 0 8px;color:var(--faint)}
+.res{display:flex;gap:8px;margin:6px 0 0;color:var(--faint)}
+[data-skin=app] .res{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .res .gut{flex:none;color:var(--line)}
-.res pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;max-width:100%}
-.res.err pre{color:var(--red)}
-.more{color:var(--line);font-size:11.5px;margin-top:2px}
-footer{border-top:1px solid var(--line);margin-top:40px;padding-top:18px;color:var(--faint);font-size:11.5px}
-@media (max-width:640px){body{font-size:12.5px}.wrap{padding:0 12px}}
+[data-skin=app] .res .gut{display:none}
+.rbody{min-width:0;flex:1}
+.res pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.95em;max-width:100%;font-family:var(--mono)}
+.res.err pre{color:#c96a5a}
+.more{color:var(--faint);opacity:.7;font-size:.9em;margin-top:3px}
+footer{border-top:1px solid var(--line);margin-top:44px;padding-top:20px;color:var(--faint);font-size:.8em}
+@media (max-width:640px){.wrap{padding:0 14px}[data-skin=app]{--size:15px}}
 </style></head><body><div class="wrap">
 <header>
   <h1 class="top">✻ <span class="accent">OPERACIÓN SIESTA</span> — la sesión completa</h1>
   <p class="sub">De una fotografía de un living a un juego 3D deployado. Todo procedural: ni una textura, ni un modelo, ni un sonido importado.</p>
-  <div class="stats">
+  <div class="bar">
     <span><b>${userTurns}</b> mensajes</span>
-    <span><b>${toolCalls}</b> llamadas a herramientas</span>
+    <span><b>${toolCalls}</b> herramientas</span>
     <span><b>71</b> subagentes</span>
-    <span><b>47.219</b> líneas de código</span>
+    <span><b>47.219</b> líneas</span>
     <span><a href="https://operacion-siesta.vercel.app">jugar</a></span>
     <span><a href="https://github.com/alandaitch/operacion-siesta">código</a></span>
+    <span class="skin">
+      <button data-s="app" aria-pressed="true">App</button><button data-s="term" aria-pressed="false">Terminal</button>
+    </span>
   </div>
 </header>
 ${parts.join('\n')}
 <footer>Generado desde el log de la sesión con <code>tools/transcript-html.mjs</code>. La prosa está textual salvo unas pocas referencias redactadas por privacidad; los resultados de herramientas están recortados a ${MAX_RESULT_LINES} líneas y filtrados.</footer>
-</div></body></html>`;
+</div>
+<script>
+(() => {
+  const root = document.documentElement;
+  const set = (s) => {
+    root.dataset.skin = s;
+    for (const b of document.querySelectorAll('.skin button'))
+      b.setAttribute('aria-pressed', String(b.dataset.s === s));
+    try { localStorage.setItem('siesta.skin', s); } catch {}
+  };
+  try { const v = localStorage.getItem('siesta.skin'); if (v) set(v); } catch {}
+  for (const b of document.querySelectorAll('.skin button'))
+    b.addEventListener('click', () => set(b.dataset.s));
+})();
+</script>
+</body></html>`;
 
 fs.writeFileSync(out, html);
 console.log(`${out} — ${userTurns} mensajes, ${toolCalls} llamadas, ${(html.length / 1024).toFixed(0)} KB`);
